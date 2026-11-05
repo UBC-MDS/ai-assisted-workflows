@@ -1,0 +1,97 @@
+name: Deploy
+
+# Merging to main is a deploy. This replays a sample of production traffic through the new
+# release, runs the KPI drift monitor over the scheduled reports, files an incident if
+# anything drifted, and commits the new traces to logs/.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -q -r requirements.txt
+
+      - name: Is there a new release to deploy?
+        id: key
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          NEW=$(python -c "import askdb; print(askdb.__version__)")
+          LAST=$(tail -n 1 logs/traces.jsonl | python -c "import json, sys; print(json.load(sys.stdin)['release'])")
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::notice::No ANTHROPIC_API_KEY secret — skipping the deploy replay."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          elif [ "$NEW" = "$LAST" ]; then
+            echo "::notice::Release $NEW is already deployed — nothing to do."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Deploying $NEW (previous: $LAST)"
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Replay production traffic
+        if: steps.key.outputs.present == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python scripts/replay_traffic.py
+
+      - name: KPI drift monitor
+        id: kpi
+        if: steps.key.outputs.present == 'true'
+        continue-on-error: true
+        run: |
+          python scripts/kpi_monitor.py --markdown-out kpi.md
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Commit traces
+        if: steps.key.outputs.present == 'true'
+        run: |
+          git config user.name "askdb-deploy"
+          git config user.email "askdb-deploy@users.noreply.github.com"
+          git add logs/traces.jsonl
+          git commit -m "deploy: production traces for $(python -c 'import askdb; print(askdb.__version__)')" || true
+          git push
+
+      - name: File an incident
+        if: steps.kpi.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const version = fs.readFileSync('askdb/__init__.py', 'utf8').match(/__version__ = "(.+)"/)[1];
+            const body = [
+              fs.readFileSync('kpi.md', 'utf8'),
+              '',
+              'Traces for this release are in `logs/traces.jsonl` (`git pull` to get them).',
+              '',
+              '---',
+              '_Filed automatically by `deploy.yml`._',
+            ].join('\n');
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title: `Sev-2: KPI drift after release ${version}`,
+              body, labels: ['incident', 'sev-2'],
+            });
+            try {
+              await github.rest.issues.addAssignees({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: issue.data.number, assignees: [context.repo.owner],
+              });
+            } catch (e) { core.warning(`Could not assign: ${e.message}`); }
+            core.setFailed(`KPI drift — filed #${issue.data.number}`);

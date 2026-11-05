@@ -1,0 +1,70 @@
+name: Eval gate
+
+# Merge is gated on the benchmark. Tests check that the code does what it says;
+# the benchmark checks that askdb's answers are right.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -q -r requirements.txt
+
+      - name: Verify the benchmark itself is sound
+        run: python evals/run_eval.py --source gold
+
+      - name: Run the benchmark against this branch
+        id: eval
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "no-key" > eval.txt
+            echo "exit=skip" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python evals/run_eval.py --gate | tee eval.txt
+          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Post the scorecard
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const out = fs.readFileSync('eval.txt', 'utf8').trim();
+            const skipped = '${{ steps.eval.outputs.exit }}' === 'skip';
+            const passed  = '${{ steps.eval.outputs.exit }}' === '0';
+            const body = skipped
+              ? ['## 📊 Eval gate — skipped',
+                 '',
+                 'No `ANTHROPIC_API_KEY` secret on this repo, so the live benchmark could not run.',
+                 'Add the workshop key in *Settings → Secrets and variables → Actions*.'].join('\n')
+              : ['## 📊 Eval gate — ' + (passed ? '✅ passed' : '❌ **regression**'),
+                 '',
+                 '```', out, '```',
+                 '',
+                 passed
+                   ? '_No category lost two or more pairs against `evals/baseline.json`._'
+                   : '_A category regressed against `evals/baseline.json`. Merge is blocked._'].join('\n');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+      - name: Block the merge on regression
+        if: steps.eval.outputs.exit != '0' && steps.eval.outputs.exit != 'skip'
+        run: exit 1

@@ -1,0 +1,31 @@
+# Exec KPI report — askdb answers each question every morning at 07:00.
+# kpi_monitor.py compares every answer with its history.
+
+reports:
+- id: rpt-new-customers-2024
+  label: New customers, 2024 cohort
+  question: How many customers made their first purchase in calendar 2024? Return a single number.
+- id: rpt-retention-2023
+  label: 12-month retention, 2023 cohort (%)
+  question: What was 12-month retention for customers whose first purchase was in calendar 2023? Return the percentage as a single number.
+- id: rpt-retention-2024
+  label: 12-month retention, 2024 cohort (%)
+  question: What was 12-month retention for customers whose first purchase was in calendar 2024? Return the percentage as a single number.
+- id: rpt-churn-2023
+  label: 12-month churn, 2023 cohort (%)
+  question: What was 12-month churn for customers whose first purchase was in calendar 2023? Return the percentage as a single number.
+- id: rpt-arpu-2024q3
+  label: ARPU, Jul–Sep 2024 (USD)
+  question: What was ARPU for July to September 2024? Return a single number.
+- id: rpt-ltv-2023
+  label: LTV, 2023 cohort (USD)
+  question: What is the average LTV of customers whose first purchase was in calendar 2023? Return a single number.
+- id: rpt-revenue-2024
+  label: Revenue, calendar 2024 (USD)
+  question: What was our revenue in calendar 2024? Return a single number.
+- id: rpt-revenue-2024q4
+  label: Revenue, Oct–Dec 2024 (USD)
+  question: What was revenue for October to December 2024? Return a single number.
+- id: rpt-units-2024
+  label: Units sold, calendar 2024
+  question: How many units did we sell in calendar 2024? Return a single number.

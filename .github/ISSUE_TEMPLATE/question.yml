@@ -1,0 +1,17 @@
+name: Question
+description: Ask about askdb — how to run it, what a field means, how evals work.
+title: "[question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The KB bot answers from `docs/` and closes this issue if it can answer
+        fully. If it can't, it says so and leaves the issue open for a human.
+  - type: textarea
+    id: question
+    attributes:
+      label: What do you want to know?
+      placeholder: How do I find the SQL behind an answer askdb gave me?
+    validations:
+      required: true

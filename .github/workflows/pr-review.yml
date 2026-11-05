@@ -1,0 +1,64 @@
+name: Privacy review
+
+# Every PR gets a privacy review: deterministic checks against the branch, then an LLM review
+# against the checklist in scripts/bot.py. It posts a real GitHub review — Approve or
+# Request changes — and this check goes red when it requests changes.
+#
+# Forks: to let it approve, tick Settings → Actions → General →
+# "Allow GitHub Actions to create and approve pull requests".
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -q -r requirements.txt
+
+      - name: Build the diff
+        run: |
+          git diff --unified=8 "origin/${{ github.base_ref }}...${{ github.event.pull_request.head.sha }}" > pr.patch
+
+      - name: Review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            printf '## 🔒 Privacy review — skipped\n\nNo `ANTHROPIC_API_KEY` secret on this repo.\n' > review.md
+            echo "COMMENT" > verdict.txt
+          else
+            python scripts/bot.py review-pr --diff-file pr.patch --verdict-file verdict.txt > review.md
+          fi
+          cat review.md
+
+      - name: Post the review
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('review.md', 'utf8');
+            const verdict = fs.readFileSync('verdict.txt', 'utf8').trim();
+            const args = { owner: context.repo.owner, repo: context.repo.repo,
+                           pull_number: context.issue.number, body };
+            try {
+              await github.rest.pulls.createReview({ ...args, event: verdict });
+            } catch (e) {
+              core.warning(`Could not post a ${verdict} review (${e.message}); posting as a comment.`);
+              await github.rest.pulls.createReview({ ...args, event: 'COMMENT',
+                body: body + `\n\n**Verdict: ${verdict.replace('_', ' ').toLowerCase()}**` });
+            }
+
+      - name: Fail the check when changes are requested
+        run: test "$(cat verdict.txt)" != "REQUEST_CHANGES"

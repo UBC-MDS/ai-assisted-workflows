@@ -1,0 +1,32 @@
+# The ten questions for session 1. Each was asked of askdb five times; the evidence file shows
+# every answer and the SQL behind it.
+- id: q01
+  question: What's our order growth for last month?
+  evidence: evidence/01-order-growth-last-month.md
+- id: q02
+  question: How many orders did we take in the last two weeks?
+  evidence: evidence/02-orders-last-two-weeks.md
+- id: q03
+  question: What was the average order value in Berlin last year?
+  evidence: evidence/03-aov-berlin-last-year.md
+- id: q04
+  question: How much did we sell online last month?
+  evidence: evidence/04-online-sales-last-month.md
+- id: q05
+  question: What's the average basket size in London last month?
+  evidence: evidence/05-basket-size-london-last-month.md
+- id: q06
+  question: How much did we discount in Q3?
+  evidence: evidence/06-discounts-q3.md
+- id: q07
+  question: What was London's refund rate last quarter?
+  evidence: evidence/07-refund-rate-london-last-quarter.md
+- id: q08
+  question: How many orders per customer did São Paulo customers place last quarter?
+  evidence: evidence/08-orders-per-customer-sao-paulo-last-quarter.md
+- id: q09
+  question: What was the repeat purchase rate last quarter?
+  evidence: evidence/09-repeat-purchase-rate-last-quarter.md
+- id: q10
+  question: How much subscription revenue did we book in 2025?
+  evidence: evidence/10-subscription-revenue-2025.md

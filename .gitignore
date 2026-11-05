@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+
+# Private facilitator notes — not for participants
+workshop/ORIENTATION.md
+workshop/REDESIGN.md
+workshop/comms/
+.DS_Store
+dev/
+CLAUDE.local.md
+workshop/facilitator/
+workshop/PLAN.md
+runs/
